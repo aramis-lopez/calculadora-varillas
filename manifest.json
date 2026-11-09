@@ -1,0 +1,98 @@
+{
+  "name": "Calculadora de Varillas para Columnas de Concreto",
+  "short_name": "Varillas",
+  "description": "Calcula de forma preliminar el número y diámetro de varillas necesarias para una columna de concreto reforzado.",
+  "id": "./index.html",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay"
+  ],
+  "share_target": {
+    "action": "./compartido",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "archivo",
+          "accept": [
+            "text/plain",
+            ".txt"
+          ]
+        }
+      ]
+    }
+  },
+  "orientation": "portrait-primary",
+  "background_color": "#f3f4f6",
+  "theme_color": "#1f2937",
+  "lang": "es-MX",
+  "dir": "ltr",
+  "categories": [
+    "utilities",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "widgets": [
+    {
+      "name": "Último cálculo de varillas",
+      "short_name": "Varillas",
+      "description": "Muestra el último armado calculado para una columna y abre la calculadora desde el panel de widgets.",
+      "tag": "calc-varillas",
+      "template": "varillas-template",
+      "ms_ac_template": "widgets/varillas-template.json",
+      "data": "widgets/varillas-data.json",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "widgets/varillas-screenshot.png",
+          "sizes": "300x304",
+          "type": "image/png",
+          "label": "Widget con el último cálculo de varillas para una columna"
+        }
+      ],
+      "auth": false,
+      "multiple": false
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/varillas-escritorio.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Resultado del cálculo de varillas en escritorio"
+    },
+    {
+      "src": "screenshots/varillas-movil.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Resultado del cálculo de varillas en teléfono"
+    }
+  ]
+}

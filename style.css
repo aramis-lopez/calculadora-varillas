@@ -1,0 +1,484 @@
+/* ============================================================
+   Calculadora de Varillas — Hoja de estilos
+   Paleta: gris concreto + naranja construcción
+   ============================================================ */
+
+:root {
+  --concreto:      #1f2937;   /* gris oscuro (encabezado) */
+  --concreto-2:    #374151;
+  --naranja:       #ea7317;   /* color de acento */
+  --naranja-claro: #fff3e6;
+  --fondo:         #f3f4f6;
+  --superficie:    #ffffff;
+  --texto:         #1f2937;
+  --texto-suave:   #6b7280;
+  --borde:         #e5e7eb;
+  --verde:         #047857;
+  --rojo:          #b91c1c;
+  --radio:         12px;
+  --sombra:        0 1px 3px rgba(0,0,0,.08), 0 6px 16px rgba(0,0,0,.05);
+}
+
+* { box-sizing: border-box; }
+
+/* Un display definido en una regla (p. ej. #resultados { display: flex })
+   anularía el atributo hidden: esto garantiza que siempre oculte */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ---------- Encabezado ---------- */
+.app-header {
+  background: var(--concreto);
+  color: #fff;
+  /* Franja tipo cinta de precaución */
+  border-bottom: 4px solid var(--naranja);
+}
+
+.header-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo svg {
+  width: 44px;
+  height: 44px;
+  color: var(--naranja);
+  display: block;
+}
+
+.header-text { flex: 1; min-width: 0; }
+
+.header-text h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: .2px;
+}
+
+.header-text p {
+  margin: 2px 0 0;
+  font-size: .82rem;
+  color: #cbd5e1;
+}
+
+.btn-instalar {
+  background: var(--naranja);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-instalar:hover { filter: brightness(1.08); }
+
+/* ---------- Window Controls Overlay: el encabezado es la barra de título ----------
+   Con display_override "window-controls-overlay" (ver manifest.json) la app
+   instalada muestra su contenido hasta el borde superior de la ventana y los
+   botones de ventana quedan superpuestos. wco.js marca <html class="wco">
+   mientras exista esa barra; entonces el encabezado se fija arriba, ocupa el
+   área de la barra de título y sirve para arrastrar la ventana.
+   Fuera de la app instalada (pestaña normal) nada de esto se aplica. */
+:root.wco {
+  /* Alto reservado arriba: posición Y + alto del área de la barra de título */
+  --alto-barra: calc(env(titlebar-area-y, 0px) + env(titlebar-area-height, 40px));
+
+  /* Los scrollIntoView no deben quedar ocultos detrás del encabezado fijo */
+  scroll-padding-top: var(--alto-barra);
+}
+
+.wco body { padding-top: var(--alto-barra); }
+
+.wco .app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--alto-barra);
+  z-index: 1000;
+  border-bottom-width: 2px;
+  user-select: none;
+  -webkit-app-region: drag;      /* arrastrar el encabezado mueve la ventana */
+  app-region: drag;
+}
+
+/* Área segura: entre el borde de la ventana y los botones de ventana
+   (a la derecha en Windows, a la izquierda en macOS) */
+.wco .header-inner {
+  position: absolute;
+  left: env(titlebar-area-x, 0);
+  top: env(titlebar-area-y, 0);
+  width: env(titlebar-area-width, 100%);
+  height: calc(env(titlebar-area-height, 40px) - 2px);   /* menos el borde inferior */
+  max-width: none;
+  margin: 0;
+  padding: 0 12px;
+  gap: 10px;
+  container-type: inline-size;   /* permite adaptar el contenido al ancho disponible */
+}
+
+.wco .logo svg { width: 22px; height: 22px; }
+
+.wco .header-text {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.wco .header-text h1 {
+  font-size: .9rem;
+  white-space: nowrap;
+}
+
+.wco .header-text p {
+  margin: 0;
+  font-size: .75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Los controles dentro de la barra deben poder pulsarse */
+.wco .btn-instalar {
+  padding: 4px 10px;
+  font-size: .75rem;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Ventana angosta: primero se oculta el subtítulo; después, el texto */
+@container (max-width: 560px) { .wco .header-text p { display: none; } }
+@container (max-width: 240px) { .wco .header-text { display: none; } }
+
+/* ---------- Estructura ---------- */
+.contenedor {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 18px;
+}
+
+.titulo-seccion {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--texto-suave);
+}
+
+.fila-titulo {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+/* ---------- Formulario ---------- */
+.grid-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.campo { display: flex; flex-direction: column; }
+
+.campo label {
+  font-size: .85rem;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.campo input,
+.campo select {
+  font: inherit;
+  padding: 11px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--texto);
+  width: 100%;
+}
+
+.campo input:focus,
+.campo select:focus {
+  outline: 2px solid var(--naranja);
+  outline-offset: 1px;
+  border-color: var(--naranja);
+}
+
+.ayuda {
+  font-size: .75rem;
+  color: var(--texto-suave);
+  margin-top: 4px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: .85rem;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+.check input { width: 17px; height: 17px; accent-color: var(--naranja); }
+
+/* ---------- Botones ---------- */
+.acciones {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 22px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  flex: 1 1 140px;
+}
+
+.btn-primario { background: var(--naranja); color: #fff; }
+.btn-primario:hover { filter: brightness(1.08); }
+
+.btn-secundario {
+  background: #fff;
+  color: var(--texto);
+  border-color: #d1d5db;
+}
+.btn-secundario:hover { background: #f9fafb; }
+
+.btn-texto {
+  background: none;
+  border: 0;
+  color: var(--rojo);
+  font-size: .8rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.error {
+  margin: 12px 0 0;
+  color: var(--rojo);
+  font-size: .87rem;
+  font-weight: 600;
+}
+
+/* ---------- Resultados ---------- */
+#resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.tarjeta-resultado { border-top: 4px solid var(--naranja); }
+
+.lista-resultados {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.item {
+  background: var(--fondo);
+  border-radius: 9px;
+  padding: 11px 13px;
+}
+
+.item .etiqueta {
+  display: block;
+  font-size: .76rem;
+  color: var(--texto-suave);
+  margin-bottom: 2px;
+}
+
+.item .valor {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+/* Elementos destacados */
+.item.destacado {
+  background: var(--naranja-claro);
+  border: 1px solid #fcd9b0;
+}
+.item.destacado .valor { color: #b45309; }
+
+/* Croquis de la sección */
+.croquis {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+.croquis svg { max-width: 260px; width: 100%; height: auto; }
+
+/* ---------- Tabla ---------- */
+.tabla-scroll { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .88rem;
+  min-width: 460px;
+}
+
+th, td {
+  padding: 10px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--borde);
+}
+
+th:first-child, td:first-child { text-align: left; }
+
+thead th {
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--texto-suave);
+  border-bottom: 2px solid var(--borde);
+}
+
+tbody tr.elegida {
+  background: var(--naranja-claro);
+  font-weight: 700;
+}
+
+/* ---------- Historial ---------- */
+.historial {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.historial li {
+  background: var(--fondo);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: .85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.historial .fecha {
+  display: block;
+  font-size: .72rem;
+  color: var(--texto-suave);
+}
+
+.vacio {
+  color: var(--texto-suave);
+  font-size: .85rem;
+  font-style: italic;
+}
+
+/* ---------- Compartir ---------- */
+.btn-enlace {
+  flex: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  color: #b45309;
+  text-decoration: underline;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.btn-enlace:hover { color: var(--naranja); }
+
+/* Contenido recibido desde otra app (Web Share Target) */
+.recibido {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-left: 5px solid #2563eb;
+  border-radius: var(--radio);
+  padding: 14px 16px;
+  font-size: .85rem;
+  color: #1e3a8a;
+}
+.recibido .btn-enlace { color: inherit; }
+.recibido p { margin: 6px 0 0; }
+.recibido-detalle { white-space: pre-line; overflow-wrap: anywhere; }
+.recibido-estado { font-weight: 600; }
+
+/* Mensaje breve de estado */
+.estado {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--concreto);
+  color: #fff;
+  font-size: .85rem;
+  box-shadow: var(--sombra);
+  z-index: 1100;
+}
+.estado-error { background: var(--rojo); }
+
+/* ---------- Aviso ---------- */
+.aviso {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 5px solid #f59e0b;
+  border-radius: var(--radio);
+  padding: 14px 16px;
+  font-size: .85rem;
+  color: #78350f;
+}
+.aviso p { margin: 6px 0 0; }
+
+/* ---------- Pie ---------- */
+.pie {
+  text-align: center;
+  padding: 18px;
+  font-size: .78rem;
+  color: var(--texto-suave);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 480px) {
+  .header-text h1 { font-size: 1.05rem; }
+  .header-text p  { font-size: .75rem; }
+  .btn { flex: 1 1 100%; }
+  .tarjeta { padding: 15px; }
+}
