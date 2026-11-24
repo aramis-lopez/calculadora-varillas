@@ -438,6 +438,21 @@ tbody tr.elegida {
 .recibido-detalle { white-space: pre-line; overflow-wrap: anywhere; }
 .recibido-estado { font-weight: 600; }
 
+/* ---------- Distintivo y notificaciones ---------- */
+.texto-seccion {
+  margin: 0 0 8px;
+  font-size: .87rem;
+  color: var(--texto-suave);
+}
+.texto-seccion:empty { display: none; }
+
+.subtitulo-seccion {
+  margin: 20px 0 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--borde);
+  font-size: .9rem;
+}
+
 /* Mensaje breve de estado */
 .estado {
   position: fixed;

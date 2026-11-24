@@ -230,6 +230,7 @@ function calcular(evento) {
   };
   ultimoCalculo = { registro, opciones };
   guardarEnHistorial(registro);
+  notificarCalculo(registro);
 
   guardarPreferencias();
   secResultados.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -268,6 +269,7 @@ function guardarEnHistorial(registro) {
   localStorage.setItem(CLAVE_HISTORIAL, JSON.stringify(lista.slice(0, 10))); // máx. 10
   pintarHistorial();
   publicarWidget();
+  actualizarDistintivo();
 }
 
 function pintarHistorial() {
@@ -300,6 +302,7 @@ function borrarHistorial() {
   localStorage.removeItem(CLAVE_HISTORIAL);
   pintarHistorial();
   publicarWidget();
+  actualizarDistintivo();
 }
 
 function guardarPreferencias() {
@@ -573,7 +576,7 @@ async function publicarWidget() {
   } catch { /* sin caché o sin Service Worker: el widget conserva sus datos anteriores */ }
 }
 
-/** Los botones del widget abren la app con ?accion=nuevo o ?accion=historial. */
+/** Los botones del widget y de las notificaciones abren la app con ?accion=nuevo o ?accion=historial. */
 function atenderAccionWidget() {
   const accion = new URLSearchParams(location.search).get('accion');
   if (!accion) return;
@@ -588,7 +591,222 @@ function atenderAccionWidget() {
 }
 
 /* ------------------------------------------------------------
-   10) INICIALIZACIÓN
+   10) DISTINTIVOS Y NOTIFICACIONES
+   Volver a interactuar con el usuario:
+   · Distintivo (App Badging API): número pequeño sobre el icono de la app
+     instalada. No interrumpe, así que se puede actualizar con frecuencia.
+     Aquí muestra cuántos cálculos hay guardados en el historial.
+   · Notificaciones (Notifications API): aparecen en el centro de
+     notificaciones del sistema. Interrumpen, por eso son opcionales: hay
+     que dar permiso (solo se pide al pulsar un botón) y activar el aviso.
+   · Mensajes push (Push API): notificaciones que envía un servidor aunque
+     la app esté cerrada (ver "Mensajes push" más abajo y el evento 'push'
+     de sw.js).
+   ------------------------------------------------------------ */
+
+const CLAVE_AVISOS = 'calcVarillas.avisoCalculo';
+
+const ICONO_AVISO = () => new URL('icons/icon-192.png', location.href).href;
+
+/* ---------- Distintivo en el icono de la aplicación ---------- */
+
+/** Muestra en el icono el número de cálculos guardados; sin cálculos, lo quita. */
+function actualizarDistintivo() {
+  if (!navigator.setAppBadge) return;   // sin App Badging API
+  try {
+    const total = leerHistorial().length;
+    const operacion = total > 0 ? navigator.setAppBadge(total) : navigator.clearAppBadge();
+    operacion.catch(error => console.error('Error al actualizar el distintivo', error));
+  } catch (error) {
+    console.error('Error al actualizar el distintivo', error);
+  }
+}
+
+/* ---------- Notificaciones ---------- */
+
+const soportaNotificaciones = 'Notification' in window;
+
+const avisoCalculoActivado = () => localStorage.getItem(CLAVE_AVISOS) === '1';
+
+/**
+ * Muestra una notificación. Se usa ServiceWorkerRegistration.showNotification
+ * porque es la única forma de añadir botones de acción y porque también
+ * funciona en Android; si no hay Service Worker, se usa el constructor
+ * Notification (que no admite acciones).
+ */
+async function mostrarNotificacion(titulo, opciones) {
+  const registro = 'serviceWorker' in navigator
+    ? await navigator.serviceWorker.getRegistration()
+    : null;
+
+  if (registro) return registro.showNotification(titulo, opciones);
+
+  const { actions, ...sinAcciones } = opciones;
+  new Notification(titulo, sinAcciones);
+}
+
+/** Notificación que sigue a un cálculo, solo si hay permiso y el usuario la activó. */
+function notificarCalculo(r) {
+  if (!soportaNotificaciones || Notification.permission !== 'granted' || !avisoCalculoActivado()) return;
+
+  mostrarNotificacion('Cálculo listo', {
+    body: `Columna ${limpio(r.ancho)} × ${limpio(r.largo)} cm: ${r.cantidad} varillas de ${r.diametro}`,
+    icon: ICONO_AVISO(),
+    tag: 'calculo',   // un cálculo nuevo reemplaza al aviso anterior en vez de apilarse
+    renotify: true,   // ...pero vuelve a avisar: sin esto el reemplazo es silencioso
+    actions: [
+      { action: 'historial', title: 'Ver historial' },    // = notificationclick en sw.js
+      { action: 'nuevo',     title: 'Nuevo cálculo' }
+    ]
+  }).catch(error => console.error('Error al mostrar la notificación', error));
+}
+
+/** Solicita el permiso. Solo se llama desde un clic (buena práctica y requisito de algunos navegadores). */
+async function activarNotificaciones() {
+  const permiso = await Notification.requestPermission();
+  pintarAvisos();
+  if (permiso === 'granted') avisar('Notificaciones activadas.');
+}
+
+function probarNotificacion() {
+  if (!soportaNotificaciones || Notification.permission !== 'granted') return;
+  mostrarNotificacion('Notificación de prueba', {
+    body: 'Así se verán los avisos de la calculadora.',
+    icon: ICONO_AVISO(),
+    tag: 'prueba',
+    renotify: true   // con el mismo tag, sin esto la segunda prueba no se vería
+  }).catch(error => {
+    console.error('Error al mostrar la notificación', error);
+    avisar('No se pudo mostrar la notificación.', true);
+  });
+}
+
+/** Refleja en la tarjeta el estado del distintivo y del permiso de notificaciones. */
+function pintarAvisos() {
+  $('distintivoEstado').textContent = navigator.setAppBadge
+    ? 'El icono de la aplicación instalada muestra el número de cálculos guardados.'
+    : 'Tu navegador no admite distintivos en el icono de la aplicación.';
+
+  const permiso = soportaNotificaciones ? Notification.permission : 'no-soportado';
+
+  $('avisosEstado').textContent = {
+    'no-soportado': 'Tu navegador no admite notificaciones.',
+    default:        'Las notificaciones están desactivadas.',
+    denied:         'Bloqueaste las notificaciones. Para activarlas, permítelas en la configuración del sitio del navegador.',
+    granted:        'Las notificaciones están activadas.'
+  }[permiso];
+
+  $('btnActivarAvisos').hidden = permiso !== 'default';
+  $('btnProbarAviso').hidden   = permiso !== 'granted';
+  $('filaAvisoCalculo').hidden = permiso !== 'granted';
+  $('chkAvisoCalculo').checked = avisoCalculoActivado();
+
+  pintarPush();
+}
+
+/* ---------- Mensajes push (Push API) ----------
+   Volver a interactuar aunque la app esté cerrada. Los pasos son:
+   1) permiso de notificaciones (arriba), 2) suscribirse con pushManager,
+   3) un SERVIDOR envía los mensajes y 4) sw.js los muestra al recibir el
+   evento 'push'. Esta app no tiene servidor: al suscribirte se genera un
+   JSON (endpoint + claves) que se copia para que lo use el servidor que
+   quieras (ver README). */
+
+// Clave PÚBLICA VAPID del servidor que enviará los mensajes (base64url).
+// Se genera junto con una clave privada, que es secreta y NO va en este archivo.
+// Ejemplo: npx web-push generate-vapid-keys   (o https://vapidkeys.com)
+// Vacía = los mensajes push quedan desactivados.
+const CLAVE_VAPID_PUBLICA = '';
+
+const soportaPush = 'serviceWorker' in navigator && 'PushManager' in window;
+
+/** Convierte la clave VAPID (base64url) al Uint8Array que pide pushManager.subscribe. */
+function urlBase64ToUint8Array(base64String) {
+  const relleno = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + relleno).replace(/-/g, '+').replace(/_/g, '/');
+  const crudo = atob(base64);
+  return Uint8Array.from(crudo, c => c.charCodeAt(0));
+}
+
+/** Suscripción push actual, o null si no hay (o no hay Service Worker). */
+async function obtenerSuscripcionPush() {
+  if (!soportaPush) return null;
+  const registro = await navigator.serviceWorker.getRegistration();
+  return registro ? registro.pushManager.getSubscription() : null;
+}
+
+/** Paso 2: suscribe al usuario. Se llama desde un clic. */
+async function suscribirPush() {
+  try {
+    const registro = await navigator.serviceWorker.getRegistration();
+    if (!registro) throw new Error('El Service Worker aún no está registrado.');
+
+    // Si ya hay suscripción, no se crea otra
+    if (!(await registro.pushManager.getSubscription())) {
+      await registro.pushManager.subscribe({
+        userVisibleOnly: true,   // obligatorio en Edge: todo mensaje debe mostrarse al usuario
+        applicationServerKey: urlBase64ToUint8Array(CLAVE_VAPID_PUBLICA)
+      });
+    }
+    avisar('Suscrito a mensajes push.');
+  } catch (error) {
+    // Permiso rechazado, clave VAPID inválida, sin conexión al servicio push...
+    console.error('Error al suscribirse a mensajes push', error);
+    avisar('No se pudo suscribir a los mensajes push.', true);
+  }
+  await pintarPush();
+}
+
+async function cancelarPush() {
+  try {
+    const suscripcion = await obtenerSuscripcionPush();
+    if (suscripcion) await suscripcion.unsubscribe();
+    avisar('Suscripción cancelada.');
+  } catch (error) {
+    console.error('Error al cancelar la suscripción push', error);
+    avisar('No se pudo cancelar la suscripción.', true);
+  }
+  await pintarPush();
+}
+
+/** Copia la suscripción (JSON con endpoint y claves) para pegarla en el servidor. */
+async function copiarSuscripcionPush() {
+  try {
+    const suscripcion = await obtenerSuscripcionPush();
+    if (!suscripcion) return;
+    await navigator.clipboard.writeText(JSON.stringify(suscripcion.toJSON(), null, 2));
+    avisar('Suscripción copiada al portapapeles.');
+  } catch {
+    avisar('No se pudo copiar la suscripción.', true);
+  }
+}
+
+async function pintarPush() {
+  const permiso = soportaNotificaciones ? Notification.permission : 'no-soportado';
+  let texto, suscripcion = null;
+
+  if (!soportaPush) {
+    texto = 'Tu navegador no admite mensajes push.';
+  } else if (!CLAVE_VAPID_PUBLICA) {
+    texto = 'Los mensajes push están desactivados: falta configurar la clave pública VAPID (ver README).';
+  } else if (permiso !== 'granted') {
+    texto = 'Activa primero las notificaciones para poder recibir mensajes push.';
+  } else {
+    try { suscripcion = await obtenerSuscripcionPush(); } catch { /* sin Service Worker */ }
+    texto = suscripcion
+      ? 'Estás suscrito: un servidor puede enviarte mensajes aunque la app esté cerrada.'
+      : 'Aún no estás suscrito a mensajes push.';
+  }
+
+  const disponible = soportaPush && CLAVE_VAPID_PUBLICA && permiso === 'granted';
+  $('pushEstado').textContent = texto;
+  $('btnSuscribirPush').hidden = !(disponible && !suscripcion);
+  $('btnCopiarPush').hidden    = !suscripcion;
+  $('btnCancelarPush').hidden  = !suscripcion;
+}
+
+/* ------------------------------------------------------------
+   11) INICIALIZACIÓN
    ------------------------------------------------------------ */
 
 // Llena el selector de diámetros desde el catálogo
@@ -613,14 +831,28 @@ ulHistorial.addEventListener('click', e => {
 });
 $('btnCerrarRecibido').addEventListener('click', () => { divRecibido.hidden = true; });
 
+// Notificaciones
+$('btnActivarAvisos').addEventListener('click', activarNotificaciones);
+$('btnProbarAviso').addEventListener('click', probarNotificacion);
+$('btnSuscribirPush').addEventListener('click', suscribirPush);
+$('btnCopiarPush').addEventListener('click', copiarSuscripcionPush);
+$('btnCancelarPush').addEventListener('click', cancelarPush);
+$('chkAvisoCalculo').addEventListener('change', e => {
+  localStorage.setItem(CLAVE_AVISOS, e.target.checked ? '1' : '0');
+});
+// El usuario pudo cambiar el permiso desde la configuración del navegador
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pintarAvisos(); });
+
 cargarPreferencias();
 pintarHistorial();
 cargarCompartido();   // después de cargar preferencias, para no pisar lo recibido
 atenderAccionWidget();
 publicarWidget();
+actualizarDistintivo();
+pintarAvisos();
 
 /* ------------------------------------------------------------
-   11) PWA: Service Worker e instalación
+   12) PWA: Service Worker e instalación
    ------------------------------------------------------------ */
 
 // Registro del Service Worker

@@ -89,10 +89,10 @@ el texto, y queda solo el icono.
 calculadora-varillas/
 ├── index.html      Estructura de la interfaz
 ├── style.css       Estilos (responsive: PC, tablet y teléfono)
-├── app.js          Cálculos, historial, registro del Service Worker
+├── app.js          Cálculos, historial, compartir, distintivo, notificaciones y push, registro del Service Worker
 ├── wco.js          Superposición de controles de ventana (barra de título propia)
 ├── manifest.json   Metadatos de la PWA (nombre, iconos, colores, widget)
-├── sw.js           Service Worker (caché, funcionamiento sin conexión y widget)
+├── sw.js           Service Worker (caché, funcionamiento sin conexión, widget, notificaciones y mensajes push)
 ├── icons/
 │   ├── icon-192.png
 │   ├── icon-512.png
@@ -229,7 +229,118 @@ actualiza en cuanto haces un cálculo o borras el historial.
 
 ---
 
-## 8. Actualizar la aplicación
+## 8. Distintivos y notificaciones
+
+Implementa la guía de
+[Microsoft Learn](https://learn.microsoft.com/es-es/microsoft-edge/progressive-web-apps/how-to/notifications-badges)
+para volver a interactuar con el usuario. Las dos APIs se complementan:
+
+| | Distintivo (App Badging API) | Notificación (Notifications API) |
+|---|---|---|
+| Qué es | Número (o punto) sobre el icono de la app | Mensaje en el centro de notificaciones del sistema |
+| Interrumpe | No | Sí |
+| Frecuencia adecuada | Alta | Poca |
+| Permiso | No lo pide | **Sí**, el usuario debe concederlo |
+
+### Distintivo en el icono
+
+El icono de la app instalada muestra **cuántos cálculos hay guardados** (0–10). Al borrar
+el historial, el distintivo desaparece.
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| `actualizarDistintivo()` | `app.js` | Comprueba `navigator.setAppBadge`; con cálculos llama a `setAppBadge(n)` y sin ellos a `clearAppBadge()`. Captura los errores de la promesa. |
+| Llamadas | `guardarEnHistorial()`, `borrarHistorial()` y al iniciar | Mantienen el número al día. |
+
+### Notificaciones
+
+La tarjeta **Distintivo y notificaciones** (al final de la página) sigue las
+buenas prácticas de la guía:
+
+1. Comprueba que existe `Notification` antes de usar la API.
+2. El permiso **solo se pide al pulsar** *🔔 Activar notificaciones* (`Notification.requestPermission()`),
+   nunca al cargar la página.
+3. Con el permiso concedido aparecen *Probar notificación* y la casilla
+   *Notificarme cuando termine un cálculo*, **desactivada por omisión**, para no interrumpir.
+4. La notificación se muestra con `registration.showNotification()` (única forma de añadir
+   botones) y lleva dos acciones: **Ver historial** y **Nuevo cálculo**. Si no hay Service
+   Worker se usa `new Notification()`, que no admite acciones.
+5. `tag: 'calculo'` hace que un cálculo nuevo reemplace al aviso anterior en lugar de apilarse,
+   y `renotify: true` hace que ese reemplazo **vuelva a avisar**. Sin `renotify`, una
+   notificación con un `tag` ya usado se reemplaza en silencio y parece que no llegó.
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| `mostrarNotificacion()`, `notificarCalculo()`, `activarNotificaciones()` | `app.js` | Muestran el aviso tras un cálculo y piden el permiso. |
+| `pintarAvisos()` | `app.js` | Refleja el estado del permiso (`default`, `granted`, `denied`) y se actualiza al volver a la pestaña. |
+| `notificationclick` | `sw.js` | Cierra la notificación y abre la app: *Ver historial* → `?accion=historial`, *Nuevo cálculo* → `?accion=nuevo` (las mismas rutas que usa el widget) y, si se pulsa el cuerpo, solo la enfoca. |
+
+Para probarlo, abre la app en `http://localhost:8080` (instalada para ver el distintivo en
+la barra de tareas), pulsa **Activar notificaciones**, acepta el permiso y usa
+**Probar notificación**. Si bloqueaste el permiso, cámbialo en el icono del candado de
+la barra de direcciones → *Configuración del sitio*. En DevTools → *Application* → *Service
+Workers* puedes ver y simular eventos.
+
+> Estas notificaciones son **locales**: las genera la propia app mientras está abierta o el
+> navegador sigue en segundo plano. Para recibirlas con la app cerrada, mira la sección 9.
+
+---
+
+## 9. Mensajes push
+
+Implementa la guía de
+[Microsoft Learn](https://learn.microsoft.com/es-es/microsoft-edge/progressive-web-apps/how-to/push).
+Un **servidor** envía el mensaje y el navegador despierta el Service Worker aunque la app
+esté cerrada. Los cuatro pasos de la guía:
+
+| Paso | Dónde | Qué hace |
+|---|---|---|
+| 1. Permiso | `activarNotificaciones()` en `app.js` | Es el mismo botón de la sección 8: `Notification.requestPermission()` tras un clic. |
+| 2. Suscripción | `suscribirPush()` en `app.js` | `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`. `userVisibleOnly: true` es obligatorio en Edge. Si ya hay suscripción, no crea otra. `urlBase64ToUint8Array()` convierte la clave VAPID. |
+| 3. Envío | **Tu servidor** (fuera de esta app) | Firma con la clave VAPID privada y envía con el protocolo Web Push. |
+| 4. Mostrar | evento `push` en `sw.js` | Comprueba el permiso, lee el mensaje (texto simple o JSON `{"title","body"}`) y llama a `showNotification()` dentro de `event.waitUntil()`. Si no se mostrara nada, Edge enseña una notificación genérica. |
+
+La tarjeta **Distintivo y notificaciones** añade los botones *Suscribirse a mensajes push*,
+*Copiar suscripción* y *Cancelar suscripción*.
+
+### Cómo dejarlo funcionando
+
+Esta app es estática y **no tiene backend**, así que hay que aportar el servidor:
+
+1. **Genera un par de claves VAPID**, por ejemplo con `npx web-push generate-vapid-keys`
+   o en [vapidkeys.com](https://vapidkeys.com).
+2. Pega la **clave pública** en `CLAVE_VAPID_PUBLICA` (`app.js`). Es pública y puede ir en el
+   repositorio. Mientras esté vacía, los mensajes push aparecen como desactivados.
+   La **clave privada es secreta**: guárdala solo en tu servidor, nunca en este repositorio.
+3. Sube el número de versión en `sw.js` (sección 10) y vuelve a publicar.
+4. En la app: *Activar notificaciones* → *Suscribirse a mensajes push* → *Copiar suscripción*.
+   El JSON copiado (`endpoint` y `keys`) es lo que tu servidor necesita para escribirte.
+5. Envía un mensaje con una biblioteca de
+   [web-push-libs](https://github.com/web-push-libs/), por ejemplo en Node.js:
+
+```js
+const webpush = require('web-push');
+webpush.setVapidDetails('mailto:tu@correo.com', CLAVE_PUBLICA, CLAVE_PRIVADA);
+webpush.sendNotification(suscripcionCopiada, JSON.stringify({
+  title: 'Calculadora de Varillas',
+  body: 'Hay una actualización disponible.'
+}));
+```
+
+### Probar sin servidor
+
+En DevTools → *Application* → *Service Workers* hay un cuadro **Push**: escribe un texto
+o un JSON como `{"title":"Prueba","body":"Hola"}` y pulsa *Push* para ejecutar el evento
+`push` tal como si lo hubiera enviado un servidor. Funciona con cualquier valor en
+`CLAVE_VAPID_PUBLICA`, pero necesita el permiso de notificaciones concedido.
+
+> Edge **no admite mensajes push silenciosos**: cada mensaje debe terminar en una
+> notificación visible. Esta app no atiende `pushsubscriptionchange` (renovar la suscripción
+> cuando el navegador la invalida) porque no hay servidor al que enviarle la nueva.
+
+---
+
+## 10. Actualizar la aplicación
 
 Al modificar cualquier archivo, sube el número de versión en `sw.js`:
 

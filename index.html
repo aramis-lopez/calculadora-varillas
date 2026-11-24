@@ -150,6 +150,36 @@
       <ul id="historial" class="historial"></ul>
     </section>
 
+    <!-- ============ DISTINTIVO Y NOTIFICACIONES ============
+         El distintivo (App Badging API) se actualiza solo desde app.js.
+         Las notificaciones (Notifications API) necesitan el permiso del usuario,
+         que se pide únicamente al pulsar el botón. -->
+    <section class="tarjeta" id="seccionAvisos">
+      <h2 class="titulo-seccion">Distintivo y notificaciones</h2>
+      <p class="texto-seccion" id="distintivoEstado"></p>
+      <p class="texto-seccion" id="avisosEstado" role="status"></p>
+
+      <label class="check" id="filaAvisoCalculo" hidden>
+        <input type="checkbox" id="chkAvisoCalculo">
+        <span>Notificarme cuando termine un cálculo</span>
+      </label>
+
+      <div class="acciones">
+        <button type="button" id="btnActivarAvisos" class="btn btn-primario" hidden>🔔 Activar notificaciones</button>
+        <button type="button" id="btnProbarAviso" class="btn btn-secundario" hidden>Probar notificación</button>
+      </div>
+
+      <!-- Mensajes push (Push API): llegan desde un servidor aunque la app esté cerrada.
+           Requieren el permiso de notificaciones y una clave VAPID pública (ver app.js). -->
+      <h3 class="subtitulo-seccion">Mensajes push</h3>
+      <p class="texto-seccion" id="pushEstado" role="status"></p>
+      <div class="acciones">
+        <button type="button" id="btnSuscribirPush" class="btn btn-primario" hidden>📨 Suscribirse a mensajes push</button>
+        <button type="button" id="btnCopiarPush" class="btn btn-secundario" hidden>Copiar suscripción</button>
+        <button type="button" id="btnCancelarPush" class="btn btn-secundario" hidden>Cancelar suscripción</button>
+      </div>
+    </section>
+
     <!-- ============ AVISO DE SEGURIDAD ============ -->
     <aside class="aviso">
       <strong>⚠ Aviso importante</strong>

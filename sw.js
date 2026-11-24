@@ -11,7 +11,7 @@
    👉 Al publicar cambios, sube el número de VERSION.
    ============================================================ */
 
-const VERSION = 'v8';
+const VERSION = 'v11';
 const CACHE   = `calc-varillas-${VERSION}`;
 
 // Contenido recibido desde otras apps (share_target en manifest.json).
@@ -218,6 +218,64 @@ async function abrirApp(ruta) {
   }
   await self.clients.openWindow(destino);
 }
+
+/* ---------- Notificaciones (Notifications API) ----------
+   app.js las muestra con registration.showNotification(); las acciones de la
+   notificación ('action' en app.js) llegan aquí. Se reutilizan las mismas
+   rutas ?accion=... que los botones del widget. */
+self.addEventListener('notificationclick', evento => {
+  evento.notification.close();   // cerrar siempre: no se cierra sola al pulsar una acción
+
+  switch (evento.action) {
+    case 'nuevo':
+      evento.waitUntil(abrirApp('./index.html?accion=nuevo'));
+      break;
+    case 'historial':
+      evento.waitUntil(abrirApp('./index.html?accion=historial'));
+      break;
+    default:   // se pulsó el cuerpo de la notificación: solo traer la app al frente
+      evento.waitUntil(abrirApp());
+  }
+});
+
+/* ---------- Mensajes push (Push API) ----------
+   Un servidor envía el mensaje (protocolo Web Push, firmado con la clave
+   VAPID privada) y el navegador despierta este Service Worker aunque la app
+   esté cerrada. Hay que mostrar SIEMPRE una notificación (userVisibleOnly):
+   si no, Edge muestra una genérica de "mensaje push recibido".
+   El mensaje puede ser texto simple o JSON: {"title": "...", "body": "..."}. */
+function leerMensajePush(evento) {
+  const mensaje = { title: 'Calculadora de Varillas', body: 'Tienes un mensaje nuevo.' };
+  if (!evento.data) return mensaje;   // push sin contenido
+
+  const texto = evento.data.text();
+  try {
+    const json = JSON.parse(texto);
+    if (json && typeof json === 'object') {
+      if (json.title) mensaje.title = String(json.title);
+      if (json.body)  mensaje.body  = String(json.body);
+      return mensaje;
+    }
+  } catch (_) { /* no es JSON: se usa como texto */ }
+
+  if (texto) mensaje.body = texto;
+  return mensaje;
+}
+
+self.addEventListener('push', evento => {
+  // Sin permiso no se puede mostrar nada
+  if (Notification.permission !== 'granted') return;
+
+  const { title, body } = leerMensajePush(evento);
+  evento.waitUntil(   // mantiene vivo el Service Worker hasta que se muestre el aviso
+    self.registration.showNotification(title, {
+      body,
+      icon: new URL('icons/icon-192.png', self.registration.scope).href,
+      tag: 'push',
+      renotify: true   // con el mismo tag, sin esto un segundo mensaje reemplaza al primero en silencio
+    })
+  );
+});
 
 // Botones de la tarjeta: 'verb' de cada Action.Execute en widgets/varillas-template.json
 self.addEventListener('widgetclick', evento => {
